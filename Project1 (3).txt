@@ -1,0 +1,136 @@
+---1Make a dataset (Using SQL) named “daily_logins” which contains the number of
+---logins on a daily basis
+
+select * into daily_logins from
+(
+select CONVERT(date,login_time) as Login_Date, count(distinct(login_log_id)) as No_of_login FROM login_logs
+group by CONVERT(date,login_time)
+) as Table1
+order by Login_Date;
+
+
+select * from daily_logins
+order by Login_Date;
+
+
+
+-----Q2 Daily trend of logins and trend of conversion rate (Number of orders placed per login)
+---Number of orders placed per login
+
+
+select CONVERT(date,login_time) as Login_Date, login_log_id, sum(ordered_quantity) as No_of_Orders
+from login_logs as A
+join sales_orders AS b
+on b.fk_buyer_id = A.user_id
+join sales_orders_items as C
+on C.fk_order_id = B.order_id
+group by CONVERT(date,login_time), login_log_id
+Order by CONVERT(date,login_time), login_log_id;
+
+-----Q3
+---- use data from Q1
+---WE use Daily login table to measure the performance of app & sale,order quantity also.
+---if it is better, then only user login multiple tym
+
+select CONVERT(date,login_time) as Login_Date,count(Distinct(user_id)) as No_of_Users, count(distinct(login_log_id)) as No_of_login 
+FROM login_logs
+group by CONVERT(date,login_time)
+order by CONVERT(date,login_time),No_of_login Desc
+
+
+-----Q3
+
+select *,(Next_Year_Order_Quantity - No_of_Quantity) as Order_Growth, (Next_Year_Value -  Total_Value) as Value_Growth from 
+(
+select *, LEAD(Year,1,0) over(order by Year) as Next_Year,
+LEAD(Month,1,0) over(order by Year) as Next_Year_Month,
+Lead(No_of_Quantity,1,0) over(order by Year) as Next_Year_Order_Quantity,
+LEAD(Total_Value,1,0) over(order by Year) as Next_Year_Value
+from
+(
+select Year(creation_time) as year, DATEPART(MONTH,creation_time) as Month,
+sum(ordered_quantity) as No_of_Quantity, sum(rate) as Total_Value from sales_orders as A
+join sales_orders_items as B
+on B.fk_order_id = A.order_id
+where order_quantity_accepted > 0
+group by Year(creation_time), DATEPART(MONTH,creation_time)
+) as Table1
+) as Table2
+where Year = 2021;
+
+
+SELECT YEAR(creation_time) years,
+       SUM(rate) as sales,
+       COUNT(fk_buyer_id) as 'No of buyers'
+FROM sales_orders a join sales_orders_items b on 
+  a.order_id = b.fk_order_id
+GROUP BY YEAR(creation_time);
+
+
+---4 What are our top-selling products in each of the two years? Can you draw some insight
+---from this?
+
+
+with CTE1 as
+(
+select Year, fk_product_id, No_of_orders from
+(
+select *, DENSE_RANK() over(partition by Year order by No_of_orders Desc) as Ranking from
+(
+select Year(creation_time) as year, fk_product_id, sum(order_quantity_accepted) as No_of_orders
+from sales_orders as A
+join sales_orders_items as B 
+on B.fk_order_id = A.order_id
+group by fk_product_id,Year(creation_time)
+) as Table1
+) as Table2
+where Ranking < 11
+)
+select fk_product_id,
+sum(case when Year = 2021 then No_of_orders end) as 'No_of_Orders_2021',
+sum(case when year = 2022 then No_of_orders end) as 'No_of_Orders_2022'
+from CTE1
+group by fk_product_id
+
+
+
+
+---5 Looking at July 2021 data, what do you think is our biggest problem and how would you
+---recommend fixing it?
+
+select distinct(sales_order_status), count(distinct(B.order_id)) as No_of_Orders from login_logs as A
+join sales_orders as B
+on B.fk_buyer_id = A.user_id
+join sales_orders_items as C
+on c.fk_order_id = B.order_id
+where Year(creation_time) = 2021
+group by sales_order_status;
+
+
+---7. Give at least 2 insights that are not mentioned above and are not clearly 
+---visible from the data
+---Back order date
+SELECT YEAR(creation_time) years,
+       SUM(rate) as sales,
+       COUNT(order_quantity_accepted) as 'number of order'
+FROM sales_orders a join sales_orders_items b on 
+  a.order_id = b.fk_order_id
+WHERE sales_order_status = 'pending'
+GROUP BY YEAR(creation_time);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
